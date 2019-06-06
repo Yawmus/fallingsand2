@@ -5,7 +5,10 @@
 struct Item
 {
 	float3 pos;
+    int id;
 };
+int width;
+int height;
 
 RWStructuredBuffer<Item> dataBuffer;
 
@@ -13,5 +16,6 @@ RWStructuredBuffer<Item> dataBuffer;
 void Move (uint3 id : SV_DispatchThreadID)
 {
 	// TODO: insert actual code here!
-	dataBuffer[id.x].pos = dataBuffer[id.x].pos + float3(1 % 10, 0, 0);
+    float3 pos = dataBuffer[id.x].pos;
+	dataBuffer[id.x].pos = float3(pos.x, pos.y - 1, 0);
 }
