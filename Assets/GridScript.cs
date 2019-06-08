@@ -1,135 +1,189 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.Linq;
-using System;
+using System.Threading;
+using System.Threading.Tasks;
+using UnityEngine;
 
 public class GridScript : MonoBehaviour
 {
 
     public int WIDTH = 20, HEIGHT = 20;
     public List<int> ids;
+    float tick = 0;
 
-    public Dictionary<int, Particle> particles;
+    public Dictionary<int, ParticleData> particleData;
     public ComputeShader shader;
     Texture2D tex;
-    ComputeBuffer buffer;
-    public struct Particle
+    Color[] bkgPixels, drawPixels;
+
+    public struct ParticleData
     {
-        public Color color;
-        public Vector3 position;
-    }
-    public struct ComputeData {
-        public Vector3 position;
         public int id;
+        public Vector3 position;
+        public Color color;
     }
+
+    public const float P_FPS = 5;
+    public const float S_FPS = 30;
+    public const float SPAWN_RATE = 1f;
 
 
     // Use this for initialization
     void Start()
     {
         ids = new List<int>();
-        particles = new Dictionary<int, Particle>();
+        particleData = new Dictionary<int, ParticleData>();
+
+        drawPixels = new Color[WIDTH * HEIGHT];
+        bkgPixels = new Color[WIDTH * HEIGHT];
         for (int i = 0; i < WIDTH * HEIGHT; i++)
         {
-            int x = i % WIDTH;
-            int y = i / HEIGHT;
-
-            //AddParticle(x, y);
+            bkgPixels[i] = new Color(0, 0, 0, 1);
         }
 
-
         tex = new Texture2D(WIDTH, HEIGHT);
-        //pixels = tex.GetPixels ();
         tex.filterMode = FilterMode.Point;
-        //		tex = Instantiate(GetComponent<Renderer> ().material.mainTexture) as Texture2D;
         GetComponent<Renderer>().material.mainTexture = tex;
-    }
 
+        shader.SetInt("width", WIDTH);
+        shader.SetInt("height", HEIGHT);
+    }
+    IEnumerator SpawnParticles()
+    {
+        while (enabled)
+        {
+            yield return new WaitForSeconds(1 / SPAWN_RATE);
+            AddParticle(UnityEngine.Random.Range(0, WIDTH), HEIGHT);
+
+        }
+    }
     void AddParticle(int x, int y)
     {
-        int id = UnityEngine.Random.Range(1, 20000);
+        int id = UnityEngine.Random.Range(1, int.MaxValue);
         Vector3 position = new Vector3(x, y, 0);
         Color color = new Color(UnityEngine.Random.Range(0, 1f), UnityEngine.Random.Range(0, 1f), UnityEngine.Random.Range(0, 1f), 1);
-        particles[id] = new Particle { position = position, color = color };
+        particleData.Add(id, new ParticleData { id = id, position = position, color = color });
         ids.Add(id);
     }
+    void RemoveParticle(int id)
+    {
+        particleData.Remove(id);
+        ids.Remove(id);
+    }
 
+    bool frame = false;
 
     // Update is called once per frame
     void Update()
     {
+        tick += (Time.unscaledDeltaTime - Time.deltaTime) * .1f;
 
-        AddParticle(UnityEngine.Random.Range(0, WIDTH), HEIGHT - 1);
-
-
-        Color[] pixels = new Color[WIDTH * HEIGHT];
-        for (int i = 0; i < WIDTH * HEIGHT; i++)
-        {
-            pixels[i] = new Color(0, 0, 0, 1);
+        if (!frame)
+            {
+            frame = true;
+            Debug.Log("First");
+            SimulatePhysics();
+            Debug.Log("Second");
+            UpdateScreen();
         }
-        for (int i = 0; i < ids.Count; i++)
-        {
-            int x = i % WIDTH;
-            int y = i / HEIGHT;
-            int id = ids[i];
-
-            Vector3 t = particles[id].position;
-            //Debug.Log("x:" + x + ", y:" + y);
-            pixels[WIDTH * (int)t.y + (int)t.x] = particles[id].color;
-        }
-
-        //pixels[2] = new Color(1, 1, 1, 1);
-
-        //Particle.Positions = g.OrderBy(i => i.y).ThenBy(i => i.x).ToList();
-        //tex.SetPixel(0, 0, Color.cyan);
-        if (ids.Count != 0)
-        {
-            RunShader();
-        }
-        tex.SetPixels(pixels);
-        tex.Apply();
     }
 
-    void RunShader()
+    async Task SimulatePhysics()
     {
-        List<ComputeData> input = new List<ComputeData>();
-        for (int i = 0; i < ids.Count; i++)
+        if (ids.Count == 0)
         {
-            int x = i % WIDTH;
-            int y = i / HEIGHT;
-            int id = ids[i];
-
-            Particle p = particles[id];
-            ComputeData temp = new ComputeData { position = p.position, id = id};
-            input.Add(temp);
+            return;
         }
-        ComputeData[] output = new ComputeData[input.Count];
-        buffer = new ComputeBuffer(input.Count, 16);
-        //INITIALIZE DATA HERE
 
-        buffer.SetData(input.ToArray());
-        int kernel = shader.FindKernel("Move");
-        shader.SetBuffer(kernel, "dataBuffer", buffer);
-        shader.SetInt("width", WIDTH);
-        shader.SetInt("height", HEIGHT);
-        shader.Dispatch(kernel, input.Count, 1, 1);
-        buffer.GetData(output);
+        ParticleData[] particleOutput = await ApplyGravity();
+        Debug.Log("Third");
 
-        for (int i = 0; i < output.Length; i++)
+        // Collision
+        for (int i = 0; i < particleOutput.Length; i++)
         {
-            ComputeData data = output[i];
-            Particle p = particles[data.id];
-            if(data.position.y < 0)
+            ParticleData data = particleOutput[i];
+            ParticleData p = particleData[data.id];
+            if (data.position.y < 0)
             {
-                particles.Remove(data.id);
-                ids.Remove(data.id);
+                    RemoveParticle(data.id);
             }
             else
             {
-                particles[data.id] = new Particle { position = data.position, color = p.color };
+                particleData.Remove(data.id);
+                particleData[data.id] = new ParticleData { id = data.id, position = data.position, color = data.color };
             }
         }
-        buffer.Dispose();
     }
+
+    async Task<ParticleData[]> ApplyGravity()
+    {
+        ParticleData[] particleOutput = new ParticleData[particleData.Count];
+        ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 32);
+
+        int kernel2 = shader.FindKernel("Move");
+
+        particleBuffer.SetData(particleData.Values.ToList());
+        shader.SetBuffer(kernel2, "particleBuffer", particleBuffer);
+        shader.Dispatch(kernel2, particleData.Count, 1, 1);
+        particleBuffer.GetData(particleOutput);
+
+        particleBuffer.Dispose();
+
+        return particleOutput;
+    }
+
+    async Task UpdateScreen()
+    {
+        shader.SetInt("width", WIDTH);
+        shader.SetInt("height", HEIGHT);
+
+        await DrawBkg();
+
+        if (ids.Count == 0)
+        {
+            tex.SetPixels(drawPixels);
+            tex.Apply();
+            return;
+        }
+
+        await DrawParticles();
+    }
+
+    async Task DrawBkg()
+    {
+        ComputeBuffer bkgColor = new ComputeBuffer(bkgPixels.Length, 16);
+        //Color[] frameOutput = new Color[bkgPixels.Length];
+
+        int kernel = shader.FindKernel("DrawBkg");
+
+        shader.SetBuffer(kernel, "frameColor", bkgColor);
+        shader.Dispatch(kernel, bkgPixels.Length, 1, 1);
+        bkgColor.GetData(drawPixels);
+        bkgColor.Dispose();
+    }
+
+    async Task DrawParticles()
+    {
+        // Draw particles
+        ComputeBuffer frameBuffer = new ComputeBuffer(drawPixels.Length, 16);
+        ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 32);
+
+        int kernel3 = shader.FindKernel("DrawParticle");
+
+        particleBuffer.SetData(particleData.Values.ToList());
+        frameBuffer.SetData(drawPixels);
+
+        shader.SetBuffer(kernel3, "particleBuffer", particleBuffer);
+        shader.SetBuffer(kernel3, "frameColor", frameBuffer);
+        shader.Dispatch(kernel3, particleData.Count, 1, 1);
+
+        frameBuffer.GetData(drawPixels);
+        tex.SetPixels(drawPixels);
+        tex.Apply();
+
+        particleBuffer.Dispose();
+        frameBuffer.Dispose();
+    }
+
 }

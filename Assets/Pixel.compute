@@ -1,21 +1,41 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel Move
+#pragma kernel DrawParticle
+#pragma kernel DrawBkg
 
-
-struct Item
+struct ParticleData
 {
-	float3 pos;
     int id;
+	float3 pos;
+    float4 color;
 };
 int width;
 int height;
 
-RWStructuredBuffer<Item> dataBuffer;
+RWStructuredBuffer<ParticleData> particleBuffer;
+RWStructuredBuffer<float4> frameColor;
 
-[numthreads(8,8,1)]
+
+[numthreads(16, 1, 1)]
+void DrawBkg (uint3 id : SV_DispatchThreadID)
+{
+    frameColor[id.x] = float4(0, 0, 0, 1);
+} 
+
+
+[numthreads(32,1,1)]
 void Move (uint3 id : SV_DispatchThreadID)
 {
-	// TODO: insert actual code here!
-    float3 pos = dataBuffer[id.x].pos;
-	dataBuffer[id.x].pos = float3(pos.x, pos.y - 1, 0);
+    // Move
+    float3 pos = particleBuffer[id.x].pos;
+	particleBuffer[id.x].pos = float3(pos.x, pos.y - 1, 0);
+}
+
+[numthreads(32,1,1)]
+void DrawParticle (uint3 id : SV_DispatchThreadID)
+{
+    // Draw
+    int x = (int) particleBuffer[id.x].pos.x;
+    int y = (int) particleBuffer[id.x].pos.y;
+    frameColor[width * y + x] = particleBuffer[id.x].color;
 }

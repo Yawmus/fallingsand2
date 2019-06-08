@@ -1,0 +1,15 @@
+﻿<Properties StartupConfiguration="{2AB04C43-7706-6EFC-2E62-8B4A303404D3}|">
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets/GridScript.cs">
+    <Files>
+      <File FileName="Assets/GridScript.cs" Line="147" Column="1" />
+      <File FileName="Assets/Pixel.compute" Line="33" Column="1" NotebookId="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.ItemProperties.Assembly-CSharp PreferredExecutionTarget="Unity.Editor" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MultiItemStartupConfigurations />
+</Properties>
