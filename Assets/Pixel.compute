@@ -1,4 +1,5 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CreateGrid
 #pragma kernel Move
 #pragma kernel DrawParticle
 #pragma kernel DrawBkg
@@ -8,34 +9,150 @@ struct ParticleData
     int id;
 	float3 pos;
     float4 color;
+	int properties;
 };
 int width;
 int height;
+int colGridWidth;
+int colGridHeight;
 
 RWStructuredBuffer<ParticleData> particleBuffer;
+RWStructuredBuffer<int> grid;
 RWStructuredBuffer<float4> frameColor;
 
+uint rng_state;
 
-[numthreads(16, 1, 1)]
-void DrawBkg (uint3 id : SV_DispatchThreadID)
+uint rand_lcg()
 {
-    frameColor[id.x] = float4(0, 0, 0, 1);
-} 
+	rng_state = 1664525 * rng_state + 1013904223;
+	return rng_state;
+}
 
+uint rand_xorshift()
+{
+	rng_state ^= (rng_state << 13);
+	rng_state ^= (rng_state >> 17);
+	rng_state ^= (rng_state << 5);
+	return rng_state;
+}
+
+[numthreads(32, 1, 1)]
+void CreateGrid(uint3 id : SV_DispatchThreadID)
+{
+	float3 pos = particleBuffer[id.x].pos;
+
+	int x = (int)pos.x + 1;
+	int y = (int)pos.y + 1;
+	
+	// Grid properties:
+	// block + rand
+	// 1 + 2
+
+	// We know it will be blocked
+	int value = 1;
+
+	// Randomness x-direction (falling)
+	rng_state = id.x;
+	uint r0 = rand_xorshift();
+	uint r1 = rand_xorshift();
+	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)...
+	value += 2 * step(0.0, f0 - .5f);
+
+	grid[colGridWidth * y + x] = value;
+}
 
 [numthreads(32,1,1)]
 void Move (uint3 id : SV_DispatchThreadID)
 {
     // Move
     float3 pos = particleBuffer[id.x].pos;
-	particleBuffer[id.x].pos = float3(pos.x, pos.y - 1, 0);
+
+	// x & y padding are extra col/row for particle indexing
+	int yPadding = 1;
+	int xPadding = 1;
+	int x = (int)pos.x + 1;
+	int y = (int)pos.y + 1;
+	int prop = particleBuffer[id.x].properties;
+
+	// Blocked by block underneath
+	int bTaken = grid[colGridWidth * (y - 1) + x] & 1;
+	int blTaken = grid[colGridWidth * (y - 1) + x - 1] & 1;
+	int brTaken = grid[colGridWidth * (y - 1) + x + 1] & 1;
+	int lTaken = grid[colGridWidth * (y) + x - 1] & 1;
+	int rTaken = grid[colGridWidth * (y) + x + 1] & 1;
+
+	// Calc moveY
+	int moveY = step(0.0, bTaken * -1);
+
+	// Calc moveX (solid)
+	int l = (blTaken + lTaken) == 0;  // If 1, can move left
+	l *= -1;
+	int r = (brTaken + rTaken) == 0;  // If 1, can move right
+	int moveX1 = l + r;
+
+	// Calc moveX (liquid)
+	l = lTaken == 0;  // If 1, can move left
+	l *= -1;
+	r = rTaken == 0;  // If 1, can move right
+	int moveX2 = l + r;
+	int both = (l != 0) && (r != 0); // Set dir to 1 if l and r are free
+	int gridDir = saturate(grid[colGridWidth * y + x] & 2); // Get direction to fall
+	int dir = 0;
+	dir += lerp(0, 1, gridDir == 0) * l; // Fall left
+	dir += lerp(0, 1, gridDir == 1) * r; // Fall right
+
+	moveX2 += lerp(0, 1, both == 0) * moveX2; // Use current value
+	moveX2 += lerp(0, 1, both == 1) * dir;    // Use (random) grid dir
+
+	rng_state = id.x;
+	uint r0 = rand_xorshift();
+	uint r1 = rand_xorshift();
+	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0);
+	int bSides = blTaken + brTaken;
+	int canMove = !lerp(0, 1, (bSides == 2) * ( f0 < .5f)); // If bl and br are taken, have a chance of not moving
+
+	
+	// canmove move liquid
+	moveX2 = step(0.0, canMove - .5f) * moveX2;
+
+
+
+
+	// solid vs liquid
+	int moveX = 0;
+	moveX += lerp(0, 1, saturate((prop & 2)) == 0) * moveX1;
+	moveX += lerp(0, 1, saturate((prop & 2)) == 1) * moveX2;
+
+	//moveX = moveX2;
+
+	// Move if affected by gravity and not blocked
+	moveY *= (prop & 1);
+	moveX *= (prop & 1);
+
+	// If moveY, then ignore moveX
+	moveX *= step(0.0, -moveY);
+
+	particleBuffer[id.x].pos = float3((int)pos.x + moveX, (int)pos.y - moveY, 0);
+}
+
+[numthreads(16, 1, 1)]
+void DrawBkg(uint3 id : SV_DispatchThreadID)
+{
+	frameColor[id.x] = float4(0, 0, 0, 1);
 }
 
 [numthreads(32,1,1)]
 void DrawParticle (uint3 id : SV_DispatchThreadID)
 {
     // Draw
-    int x = (int) particleBuffer[id.x].pos.x;
-    int y = (int) particleBuffer[id.x].pos.y;
+	float3 pos = particleBuffer[id.x].pos;
+
+    int x = (int) pos.x;
+    int y = (int) pos.y;
+
     frameColor[width * y + x] = particleBuffer[id.x].color;
 }
+
+
+
+
