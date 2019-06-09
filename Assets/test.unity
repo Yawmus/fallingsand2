@@ -243,8 +243,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5d364b635ece724a9256a7fbd99fa21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  WIDTH: 200
-  HEIGHT: 200
+  WIDTH: 150
+  HEIGHT: 150
+  TEST_ENV: 1
   ids: 
   shader: {fileID: 7200000, guid: 5f9653c75aae6bd40b2b3ef3aa4fe1c2, type: 3}
 --- !u!64 &1063000519

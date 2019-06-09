@@ -1,0 +1,219 @@
+Base path: 'C:/Program Files/Unity/Hub/Editor/2019.3.0a4/Editor/Data', plugins path 'C:/Program Files/Unity/Hub/Editor/2019.3.0a4/Editor/Data/PlaybackEngines'
+Cmd: initializeCompiler
+Cmd: compileComputeKernel
+  api=14 insize=916 outsize=1031 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 4 at Pixel.compute(35): undeclared identifier 'particleGrid'
+  api=4 insize=1105 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=14 insize=1303 outsize=754 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1332 outsize=754 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1728 outsize=1884 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1350 outsize=754 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=807 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1340 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1334 outsize=1558 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1326 outsize=1558 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1323 outsize=1107 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1353 outsize=614 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1570 outsize=1504 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1330 outsize=467 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1180 outsize=1288 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=807 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1323 outsize=467 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1374 outsize=566 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(46): undeclared identifier 'properties'
+  api=14 insize=1389 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=4 insize=1429 outsize=566 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1816 outsize=2160 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1428 outsize=754 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1514 outsize=1412 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1430 outsize=566 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1477 outsize=754 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1481 outsize=322 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=807 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1473 outsize=322 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1566 outsize=1961 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1477 outsize=868 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1475 outsize=322 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1475 outsize=1816 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1471 outsize=754 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1472 outsize=614 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1566 outsize=1961 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1460 outsize=566 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1458 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1460 outsize=1764 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1764 outsize=2075 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1764 outsize=2075 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1478 outsize=754 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1764 outsize=2075 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1478 outsize=816 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1478 outsize=754 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(47): undeclared identifier 'move'
+  api=14 insize=1462 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=14 insize=1467 outsize=1514 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1482 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1490 outsize=1566 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1764 outsize=2075 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1708 outsize=1669 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1204 outsize=1287 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1739 outsize=613 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=1854 outsize=1907 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1710 outsize=2019 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=1954 outsize=613 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=2139 outsize=1515 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 4 at Pixel.compute(65): redefinition of 'l'
+  api=4 insize=2444 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=4 insize=2453 outsize=613 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=2455 outsize=754 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=2440 outsize=1674 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=2433 outsize=1674 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=2435 outsize=613 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=1710 outsize=2019 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=2956 outsize=1669 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3551 outsize=1766 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3444 outsize=2835 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3464 outsize=1567 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3464 outsize=1766 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3466 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3486 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3429 outsize=2511 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3429 outsize=754 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3447 outsize=2377 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3451 outsize=1257 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3617 outsize=322 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3593 outsize=1766 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3890 outsize=2405 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=3890 outsize=1257 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3890 outsize=4387 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=3890 outsize=1766 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(126): undeclared identifier 'moveY'
+  api=14 insize=4307 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=14 insize=4307 outsize=4567 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=4339 outsize=2405 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(122): redefinition of 'r0'
+  api=14 insize=5059 outsize=0 ok=0
+Cmd: compileComputeKernel
+  error: 2 plat 4 at Pixel.compute(128): redefinition of 'canMove'
+  api=4 insize=5043 outsize=0 ok=0
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(113): undeclared identifier 'canMove'
+  api=14 insize=5039 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=14 insize=5048 outsize=2405 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=5044 outsize=754 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=5050 outsize=614 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=5045 outsize=4647 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=5045 outsize=4723 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=4752 outsize=6856 ok=1
+Cmd: compileComputeKernel
+  api=14 insize=5045 outsize=1766 ok=1
+Cmd: compileComputeKernel
+  error: 2 plat 14 at Pixel.compute(155): undeclared identifier 'moveY3'
+  api=14 insize=5047 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=14 insize=5057 outsize=1766 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=5055 outsize=614 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=5053 outsize=1257 ok=1
+Cmd: compileComputeKernel
+  api=4 insize=5055 outsize=1257 ok=1
+Cmd: translateComputeKernel
+  api=14 insize=843 outsize=878 ok=1

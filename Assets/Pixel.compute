@@ -55,7 +55,7 @@ void CreateGrid(uint3 id : SV_DispatchThreadID)
 	rng_state = id.x;
 	uint r0 = rand_xorshift();
 	uint r1 = rand_xorshift();
-	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)...
+	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
 	value += 2 * step(0.0, f0 - .5f);
 
 	grid[colGridWidth * y + x] = value;
@@ -64,7 +64,9 @@ void CreateGrid(uint3 id : SV_DispatchThreadID)
 [numthreads(32,1,1)]
 void Move (uint3 id : SV_DispatchThreadID)
 {
-    // Move
+	uint r0, r1;
+	float f0;
+
     float3 pos = particleBuffer[id.x].pos;
 
 	// x & y padding are extra col/row for particle indexing
@@ -74,65 +76,91 @@ void Move (uint3 id : SV_DispatchThreadID)
 	int y = (int)pos.y + 1;
 	int prop = particleBuffer[id.x].properties;
 
-	// Blocked by block underneath
+	// Blocked
+	int tTaken = grid[colGridWidth * (y + 1) + x] & 1;
+	int tlTaken = grid[colGridWidth * (y + 1) + x - 1] & 1;
+	int trTaken = grid[colGridWidth * (y + 1) + x + 1] & 1;
+
 	int bTaken = grid[colGridWidth * (y - 1) + x] & 1;
 	int blTaken = grid[colGridWidth * (y - 1) + x - 1] & 1;
 	int brTaken = grid[colGridWidth * (y - 1) + x + 1] & 1;
 	int lTaken = grid[colGridWidth * (y) + x - 1] & 1;
 	int rTaken = grid[colGridWidth * (y) + x + 1] & 1;
 
-	// Calc moveY
-	int moveY = step(0.0, bTaken * -1);
+	int bsTaken = (blTaken + brTaken) == 2;
 
-	// Calc moveX (solid)
-	int l = (blTaken + lTaken) == 0;  // If 1, can move left
+	// Useful pre-calc (liquid/gas)
+	int l = lTaken == 0;  // If 1, can move left
 	l *= -1;
-	int r = (brTaken + rTaken) == 0;  // If 1, can move right
-	int moveX1 = l + r;
-
-	// Calc moveX (liquid)
-	l = lTaken == 0;  // If 1, can move left
-	l *= -1;
-	r = rTaken == 0;  // If 1, can move right
-	int moveX2 = l + r;
+	int r = rTaken == 0;  // If 1, can move right
 	int both = (l != 0) && (r != 0); // Set dir to 1 if l and r are free
 	int gridDir = saturate(grid[colGridWidth * y + x] & 2); // Get direction to fall
-	int dir = 0;
-	dir += lerp(0, 1, gridDir == 0) * l; // Fall left
-	dir += lerp(0, 1, gridDir == 1) * r; // Fall right
+	int lrFallDir = 0;
+	lrFallDir += lerp(0, 1, gridDir == 0) * l; // Fall left
+	lrFallDir += lerp(0, 1, gridDir == 1) * r; // Fall right
 
-	moveX2 += lerp(0, 1, both == 0) * moveX2; // Use current value
-	moveX2 += lerp(0, 1, both == 1) * dir;    // Use (random) grid dir
+
+	// Calc moveX/moveY (liquid)
+	int moveX2 = l + r;
+	moveX2 += lerp(0, 1, both == 0) * moveX2;       // Use current value if they are different
+	moveX2 += lerp(0, 1, both == 1) * lrFallDir;    // Use (random) grid dir
 
 	rng_state = id.x;
-	uint r0 = rand_xorshift();
-	uint r1 = rand_xorshift();
-	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0);
-	int bSides = blTaken + brTaken;
-	int canMove = !lerp(0, 1, (bSides == 2) * ( f0 < .5f)); // If bl and br are taken, have a chance of not moving
-
+	r0 = rand_xorshift();
+	r1 = rand_xorshift();
+	f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
 	
-	// canmove move liquid
-	moveX2 = step(0.0, canMove - .5f) * moveX2;
+	int canMove = !lerp(0, 1, bsTaken * ( f0 < .5f)); // If bl and br are taken, have a chance of not moving
+	moveX2 = step(0.0, canMove - .5f) * moveX2; // Move liquid if not blocked
+	int moveY2 = -step(0.0, bTaken * -1); // Calc moveY
+
+
+	// Calc moveX/moveY (gas)
+	int moveX3 = l + r;
+	moveX3 += lerp(0, 1, both == 0) * moveX3;       // Use current value if they are different
+	moveX3 += lerp(0, 1, both == 1) * lrFallDir;    // Use (random) grid dir
+
+	rng_state = id.x;
+	r0 = rand_xorshift();
+	r1 = rand_xorshift();
+	f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
+
+	canMove = !lerp(0, 1, bsTaken * (f0 < .1f)); // If bl and br are taken, have a chance of not moving
+	moveX3 = step(0.0, canMove - .5f) * moveX3; // Move liquid if not blocked
+	int moveY3 = step(0.0, tTaken * -1); // Calc moveY
+	//moveY3 = 1;
+
+	// Calc moveX/moveY (solid)
+	l = (blTaken + lTaken) == 0;  // If 1, can move left
+	l *= -1;
+	r = (brTaken + rTaken) == 0;  // If 1, can move right
+	int moveX1 = l + r;
+	int moveY1 = -step(0.0, bTaken * -1); // Calc moveY
 
 
 
 
-	// solid vs liquid
+
+	// solid vs liquid vs gas
 	int moveX = 0;
-	moveX += lerp(0, 1, saturate((prop & 2)) == 0) * moveX1;
-	moveX += lerp(0, 1, saturate((prop & 2)) == 1) * moveX2;
+	moveX += lerp(0, 1, (prop & (2 + 4)) == 0) * moveX1;
+	moveX += lerp(0, 1, (prop & (2 + 4)) == 2) * moveX2;
+	moveX += lerp(0, 1, (prop & (2 + 4)) == 4) * moveX3;
 
-	//moveX = moveX2;
+	int moveY = 0;
+	moveY += lerp(0, 1, (prop & (2 + 4)) == 0) * moveY1;
+	moveY += lerp(0, 1, (prop & (2 + 4)) == 2) * moveY2;
+	moveY += lerp(0, 1, (prop & (2 + 4)) == 4) * moveY3;
+
 
 	// Move if affected by gravity and not blocked
 	moveY *= (prop & 1);
 	moveX *= (prop & 1);
 
 	// If moveY, then ignore moveX
-	moveX *= step(0.0, -moveY);
+	moveX *= lerp(0, 1, moveY == 0);
 
-	particleBuffer[id.x].pos = float3((int)pos.x + moveX, (int)pos.y - moveY, 0);
+	particleBuffer[id.x].pos = float3((int)pos.x + moveX, (int)pos.y + moveY, 0);
 }
 
 [numthreads(16, 1, 1)]
