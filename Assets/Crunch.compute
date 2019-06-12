@@ -10,7 +10,6 @@ int INPUTS; // Fix for bug related to inputs.Length
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	uint val = vals[id.x];
-    	uint orig = val;
 	int temp = 0;
 	int sign2 = -1;
 	uint valid = 1;
