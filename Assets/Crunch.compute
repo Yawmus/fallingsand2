@@ -4,19 +4,18 @@ RWStructuredBuffer<uint> vals;
 RWStructuredBuffer<uint> inputs;
 RWStructuredBuffer<uint> outputs;
 
-int INPUTS;
+int INPUTS; // Fix for bug related to inputs.Length
 
 [numthreads(8, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	uint val = vals[id.x];
-    uint orig = val;
+    	uint orig = val;
 	int temp = 0;
 	int sign2 = -1;
 	uint valid = 1;
 	uint prevAction = 0;
     
-    // INPUTS because inputs.Length was increasing in size per-thread?
 	for (int i = 0; i < INPUTS; i++)
 	{
 		int trans = inputs[i];
