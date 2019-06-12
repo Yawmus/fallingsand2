@@ -11,7 +11,7 @@ public class Runner : MonoBehaviour
     void Start()
     {
         int kernel = shader.FindKernel("CSMain");
-        uint[] test = { 1, 2, 3, 5, 2, 1, 2, 3, 0, 7, 5, 8, 1, 10, 1, 2, 3, 5 };
+        uint[] test = { 1, 2, 3, 0, 2, 7, 2, 8, 5, 7, 2 };
         List<uint[]> tests = new List<uint[]>();
         tests.Add(test);
 
@@ -22,9 +22,9 @@ public class Runner : MonoBehaviour
 
             int valLen = (int) Mathf.Pow(2, inputs.Length);
             uint[] vals = new uint[valLen];
-            int numThreads = (int)Mathf.Floor(valLen / 16);
+            int numThreads = (int)Mathf.Floor(valLen / 8);
 
-            shader.SetInt("THREAD_GROUP", numThreads);
+            shader.SetInt("INPUTS", inputs.Length);
             stopWatch.Start();
 
             for (int i=0; i < valLen; i++)
@@ -58,11 +58,6 @@ public class Runner : MonoBehaviour
             inputBuffer.Dispose();
             valBuffer.Dispose();
         }
-    }
-    public static void DumpToConsole(object obj)
-    {
-        var output = JsonUtility.ToJson(obj, true);
-        Debug.Log(output);
     }
 
 }

@@ -4,30 +4,32 @@ RWStructuredBuffer<uint> vals;
 RWStructuredBuffer<uint> inputs;
 RWStructuredBuffer<uint> outputs;
 
-int THREAD_GROUP;
+int INPUTS;
 
-[numthreads(16, 1,1)]
+[numthreads(8, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	uint val = vals[id.x];
+    uint orig = val;
 	int temp = 0;
-	int sign = -1;
+	int sign2 = -1;
 	uint valid = 1;
 	uint prevAction = 0;
-
-	for (int i = 0; i < inputs.Length; i++)
+    
+    // INPUTS because inputs.Length was increasing in size per-thread?
+	for (int i = 0; i < INPUTS; i++)
 	{
 		int trans = inputs[i];
 		int action = val & 1;
 		 
 		// If buying directly after selling, it's invalid
-		valid = valid * lerp(0, 1, ((action + prevAction) * sign) != -2);
+		valid = valid * lerp(0, 1, ((action + prevAction) * sign2) != -2);
 
 		// Assign if action
-		temp += lerp(0, trans, action) * sign;
+		temp += lerp(0, trans, action) * sign2;
 
 		// Updating
-		sign = lerp(-1, 1, 1 - action) * sign;
+		sign2 = lerp(-1, 1, 1 - action) * sign2;
 		val = val >> 1;
 		prevAction = action;
 	}
@@ -35,5 +37,5 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	// Assign if valid
 	uint res = lerp(0, 1, valid) * temp;
 
-	vals[id.x] = res;
+	vals[id.x] = res; 
 }
