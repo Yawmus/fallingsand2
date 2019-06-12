@@ -8,17 +8,16 @@ RWStructuredBuffer<uint> outputs;
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	uint val = vals[id.x];
-	uint temp = 0;
+	int temp = 0;
 	int sign = -1;
 	uint valid = 1;
-	uint sell = 0;
 	uint prevAction = 0;
 
 	for (int i = 0; i < inputs.Length; i++)
 	{
 		int trans = inputs[i];
 		int action = val & 1;
-
+		 
 		// If buying directly after selling, it's invalid
 		valid = valid * lerp(0, 1, ((action + prevAction) * sign) != -2);
 
