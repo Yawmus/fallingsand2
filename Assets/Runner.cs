@@ -10,37 +10,42 @@ public class Runner : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        uint[] test = { 1, 2, 3, 0, 2, 1, 2, 3, 0, 7 };
+        int kernel = shader.FindKernel("CSMain");
+        uint[] test = { 1, 2, 3, 5, 2, 1, 2, 3, 0, 7, 5, 8, 1, 10, 1, 2, 3, 5 };
         List<uint[]> tests = new List<uint[]>();
         tests.Add(test);
 
         for(int k=0; k<tests.Count; k++)
         {
             System.Diagnostics.Stopwatch stopWatch = new System.Diagnostics.Stopwatch();
-            List<uint> vals = new List<uint>();
             uint[] inputs = tests[k];
 
-            for (int i=0; i < Mathf.Pow(inputs.Length, 2); i++)
+            int valLen = (int) Mathf.Pow(2, inputs.Length);
+            uint[] vals = new uint[valLen];
+            int numThreads = (int)Mathf.Floor(valLen / 16);
+
+            shader.SetInt("THREAD_GROUP", numThreads);
+            stopWatch.Start();
+
+            for (int i=0; i < valLen; i++)
             {
-                vals.Add((uint)i);
+                vals[i] = (uint)i;
             }
 
             // Extra dimensions for padding
             ComputeBuffer inputBuffer = new ComputeBuffer(inputs.Length, 4);
-            ComputeBuffer valBuffer = new ComputeBuffer(vals.Count, 4);
-            int[] outputs = new int[vals.Count];
+            ComputeBuffer valBuffer = new ComputeBuffer(valLen, 4);
+            int[] outputs = new int[valLen];
 
-            int kernel = shader.FindKernel("CSMain");
             inputBuffer.SetData(inputs);
             valBuffer.SetData(vals);
             shader.SetBuffer(kernel, "inputs", inputBuffer);
             shader.SetBuffer(kernel, "vals", valBuffer);
 
-            stopWatch.Start();
-            shader.Dispatch(kernel, vals.Count > 1024 ? 1024 : vals.Count, 1, 1);
+            shader.Dispatch(kernel, numThreads, 1, 1);
             valBuffer.GetData(outputs);
 
-            for (int i = 0; i < vals.Count; i++)
+            for (int i = 0; i < valLen; i++)
             {
                 //Debug.Log(outputs[i]); ;
             }

@@ -4,7 +4,9 @@ RWStructuredBuffer<uint> vals;
 RWStructuredBuffer<uint> inputs;
 RWStructuredBuffer<uint> outputs;
 
-[numthreads(8,1,1)]
+int THREAD_GROUP;
+
+[numthreads(16, 1,1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	uint val = vals[id.x];
