@@ -32,10 +32,10 @@ public class GridScript : MonoBehaviour
 
     public struct ParticleData
     {
-        public int id;
-        public Vector3 position;
         public Color color;
+        public Vector3 position;
         public int properties;
+        public int id;
     }
 
     public struct ParticleProperties
@@ -46,7 +46,7 @@ public class GridScript : MonoBehaviour
 
     public const float P_FPS = 40;
     public const float S_FPS = 40;
-    public const float SPAWN_RATE = 50;
+    public const float SPAWN_RATE = 30;
     public const float GARBAGE_COLLECTION_RATE = 40;
 
 
@@ -67,7 +67,6 @@ public class GridScript : MonoBehaviour
 
         DrawTestEnv(TEST_ENV);
 
-
         //AddParticle(PARTICLE_TYPE.SAND, 0, 10);
 
         tex = new Texture2D(WIDTH, HEIGHT);
@@ -77,7 +76,7 @@ public class GridScript : MonoBehaviour
         shader.SetInt("width", WIDTH);
         shader.SetInt("height", HEIGHT);
         shader.SetInt("colGridWidth", WIDTH + 2);
-        shader.SetInt("colGridHeight", HEIGHT + 1);
+        shader.SetInt("colGridHeight", HEIGHT + 2);
         InvokeRepeating("SpawnParticles", 0f, 1/SPAWN_RATE);
         InvokeRepeating("SimulatePhysics", 0f, 1/P_FPS);
         InvokeRepeating("UpdateScreen", 0f, 1/S_FPS);
@@ -156,7 +155,7 @@ public class GridScript : MonoBehaviour
         {
             ParticleData data = particleOutput[i];
             ParticleData p = particleData[data.id];
-            if (data.position.y < 0)
+            if (data.position.y < 0 || data.position.x < 0 || data.position.y >= HEIGHT || data.position.x >= WIDTH)
             {
                 RemoveParticle(data.id);
             }
@@ -218,6 +217,7 @@ public class GridScript : MonoBehaviour
         particleBuffer.GetData(particleOutput);
         //Debug.Log("5");
 
+        inputGrid.Dispose();
         particleBuffer.Dispose();
 
         return particleOutput;
@@ -257,6 +257,9 @@ public class GridScript : MonoBehaviour
         ComputeBuffer frameBuffer = new ComputeBuffer(drawPixels.Length, 16);
         ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 36);
 
+        //Debug.Log(particleData.Count);
+        //Debug.Log(particleData.Values.ToList()[0].color);
+        //Debug.Log(particleData.Values.ToList()[0].position);
         int kernel3 = shader.FindKernel("DrawParticle");
         particleBuffer.SetData(particleData.Values.ToList());
         frameBuffer.SetData(drawPixels);
@@ -266,6 +269,7 @@ public class GridScript : MonoBehaviour
         shader.Dispatch(kernel3, particleData.Count, 1, 1);
         frameBuffer.GetData(drawPixels);
 
+        //Debug.Log(drawPixels[0]);
         tex.SetPixels(drawPixels);
         tex.Apply();
 
@@ -373,6 +377,15 @@ public class GridScript : MonoBehaviour
                     AddParticle(PARTICLE_TYPE.WALL, 2 + i, 50 - i);
                 }
 
+                AddParticle(PARTICLE_TYPE.WALL, 0, 50);
+                AddParticle(PARTICLE_TYPE.WALL, 1, 51);
+
+                // Diag top left -> bot right
+                for (int i = 0; i < 10; i++)
+                {
+                    AddParticle(PARTICLE_TYPE.WALL, 55 + (int)Mathf.Ceil(i * .5f), 70 - i);
+                }
+
                 break;
             case "2":
                 for (int i = 0; i < 10; i++)
@@ -390,6 +403,12 @@ public class GridScript : MonoBehaviour
                     AddParticle(PARTICLE_TYPE.WALL, 42 - i, 40 - i);
                 }
                 break;
+            case "3":
+                AddParticle(PARTICLE_TYPE.WALL, 0, 0);
+                AddParticle(PARTICLE_TYPE.WALL, WIDTH - 1, 0);
+                AddParticle(PARTICLE_TYPE.WALL, WIDTH - 1, HEIGHT - 1);
+                AddParticle(PARTICLE_TYPE.WALL, 0, HEIGHT - 1);
+                break;
         }
     }
 
@@ -401,6 +420,7 @@ public class GridScript : MonoBehaviour
                 AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
                 AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
                 AddParticle(PARTICLE_TYPE.SAND, UnityEngine.Random.Range((int)(WIDTH / 2) + 1, WIDTH - 20), HEIGHT - 1);
+                AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(WIDTH - 20, WIDTH - 1), 0);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 break;
             case "2":

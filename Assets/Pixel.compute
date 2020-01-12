@@ -6,10 +6,10 @@
 
 struct ParticleData
 {
-    int id;
+	float4 color;
 	float3 pos;
-    float4 color;
 	int properties;
+    int id;
 };
 int width;
 int height;
@@ -36,16 +36,25 @@ uint rand_xorshift()
 	return rng_state;
 }
 
-[numthreads(32, 1, 1)]
+[numthreads(64, 1, 1)]
 void CreateGrid(uint3 id : SV_DispatchThreadID)
 {
+	// Early return if overlapping
+	uint num, stride;
+	particleBuffer.GetDimensions(num, stride);
+	if (id.x >= num)
+	{
+		return;
+	}
+
+
 	float3 pos = particleBuffer[id.x].pos;
 
 	int x = (int)pos.x + 1;
 	int y = (int)pos.y + 1;
 	
 	// Grid properties:
-	// block + rand
+	// block + rand (0,1)
 	// 1 + 2
 
 	// We know it will be blocked
@@ -61,9 +70,18 @@ void CreateGrid(uint3 id : SV_DispatchThreadID)
 	grid[colGridWidth * y + x] = value;
 }
 
-[numthreads(32,1,1)]
+[numthreads(64,1,1)]
 void Move (uint3 id : SV_DispatchThreadID)
 {
+	// Early return if overlapping
+	uint num, stride;
+	particleBuffer.GetDimensions(num, stride);
+	if (id.x >= num)
+	{
+		return;
+	}
+
+
 	uint r0, r1;
 	float f0;
 
@@ -163,24 +181,38 @@ void Move (uint3 id : SV_DispatchThreadID)
 	particleBuffer[id.x].pos = float3((int)pos.x + moveX, (int)pos.y + moveY, 0);
 }
 
-[numthreads(16, 1, 1)]
+[numthreads(64, 1, 1)]
 void DrawBkg(uint3 id : SV_DispatchThreadID)
 {
+	// Early return if overlapping
+	uint num, stride;
+	frameColor.GetDimensions(num, stride);
+	if (id.x >= num)
+	{
+		return;
+	}
+
+
 	frameColor[id.x] = float4(0, 0, 0, 1);
 }
 
-[numthreads(32,1,1)]
+[numthreads(64,1,1)]
 void DrawParticle (uint3 id : SV_DispatchThreadID)
 {
+	// Early return if overlapping
+	uint num, stride;
+	particleBuffer.GetDimensions(num, stride);
+	if (id.x >= num)
+	{
+		return;
+	}
+
     // Draw
 	float3 pos = particleBuffer[id.x].pos;
+	float4 color = particleBuffer[id.x].color;
 
     int x = (int) pos.x;
     int y = (int) pos.y;
 
-    frameColor[width * y + x] = particleBuffer[id.x].color;
+    frameColor[width * y + x] = color;
 }
-
-
-
-
