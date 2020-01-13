@@ -9,6 +9,7 @@ public class GridScript : MonoBehaviour
 {
 
     public int WIDTH = 20, HEIGHT = 20;
+    public bool DEBUG = true;
     public string TEST_ENV = "2";
 
     // Garbage collection
@@ -17,27 +18,20 @@ public class GridScript : MonoBehaviour
     public List<int> ids;
     float tick = 0;
 
-    public Dictionary<int, ParticleData> particleData;
     public ComputeShader shader;
     Texture2D tex;
 
-    public enum PARTICLE_TYPE
+    public enum CHARACTER
     {
-        SAND,
+        HUMAN,
         WALL,
-        FIRE,
+        GRASS,
+        DIRT,
         WATER
     }
 
-    public struct ParticleData
-    {
-        public Color color;
-        public Vector3 position;
-        public int properties;
-        public int id;
-    }
-
     public int[] grid;
+    public int[] debugGrid;
 
     public struct ParticleProperties
     {
@@ -46,7 +40,7 @@ public class GridScript : MonoBehaviour
     }
 
     public const float P_FPS = 30;
-    public const float S_FPS = 30;
+    public const float FPS = 30;
     public const float SPAWN_RATE = 30;
     public const float GARBAGE_COLLECTION_RATE = 40;
 
@@ -56,7 +50,6 @@ public class GridScript : MonoBehaviour
     {
         TOTAL_HEIGHT = HEIGHT + DISPOSE_HEIGHT;
         ids = new List<int>();
-        particleData = new Dictionary<int, ParticleData>();
         grid = new int[(WIDTH + 2) * (HEIGHT + 2)]; // 0-nothing, 1-sand, 2-water, 3-gas
 
 
@@ -70,11 +63,9 @@ public class GridScript : MonoBehaviour
 
         shader.SetInt("width", WIDTH);
         shader.SetInt("height", HEIGHT);
-        shader.SetInt("colGridWidth", WIDTH + 2);
-        shader.SetInt("colGridHeight", HEIGHT + 2);
+        shader.SetInt("debug", DEBUG ? 1 : 0);
         InvokeRepeating("SpawnParticles", 0f, 1/SPAWN_RATE);
-        InvokeRepeating("SimulatePhysics", 0f, 1/P_FPS);
-        InvokeRepeating("UpdateScreen", 0f, 1/S_FPS);
+        InvokeRepeating("UpdateGame", 0f, 1 / FPS);
     }
     void SpawnParticles()
     {
@@ -82,36 +73,9 @@ public class GridScript : MonoBehaviour
         //AddParticle(GetRandom(), UnityEngine.Random.Range(0, WIDTH), HEIGHT - 1);
     }
 
-    void AddParticle(PARTICLE_TYPE pt, int x, int y)
+    void AddParticle(CHARACTER pt, int x, int y)
     {
         grid[WIDTH * y + x] = GetProperties(pt);
-    }
-
-    void RemoveParticle(int x, int y)
-    {
-        int id = 0;
-        bool found = false;
-        foreach(ParticleData p in particleData.Values)
-        {
-            if((int) p.position.x == x && (int) p.position.y == y)
-            {
-                id = p.id;
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-        {
-            Debug.Log("Couldn't find particle at x:" + x + ", y:" + y);
-            return;
-        }
-        RemoveParticle(id);
-    }
-
-    void RemoveParticle(int id)
-    {
-        particleData.Remove(id);
-        ids.Remove(id);
     }
 
     // Update is called once per frame
@@ -120,46 +84,30 @@ public class GridScript : MonoBehaviour
         tick += Time.deltaTime;
     }
 
-    async Task SimulatePhysics()
+
+    async Task UpdateGame()
     {
-        await ApplyPhysics(grid);
+        await ApplyPhysicsAndDraw();
     }
 
-    async Task ApplyPhysics(int[] grid)
-    {
-        // Extra dimensions for padding
-        ComputeBuffer gridBuffer = new ComputeBuffer(grid.Length, 4);
 
-        int kernel2 = shader.FindKernel("Move");
-
-        gridBuffer.SetData(grid);
-        shader.SetBuffer(kernel2, "grid", gridBuffer);
-        shader.Dispatch(kernel2, grid.Length, 1, 1);
-        gridBuffer.GetData(grid);
-
-        gridBuffer.Dispose();
-    }
-
-    async Task UpdateScreen()
-    {
-        await DrawParticles();
-    }
-
-    async Task DrawParticles()
+    async Task ApplyPhysicsAndDraw()
     {
         Color[] drawPixels = new Color[grid.Length];
+        int[] debugGrid = new int[grid.Length];
 
-        // Draw particles
-        ComputeBuffer frameBuffer = new ComputeBuffer(grid.Length, 16);
         ComputeBuffer gridBuffer = new ComputeBuffer(grid.Length, 4);
+        ComputeBuffer frameBuffer = new ComputeBuffer(grid.Length, 16);
+        ComputeBuffer debugVars = new ComputeBuffer(grid.Length, 4);
 
-        int kernel3 = shader.FindKernel("DrawParticle");
-        gridBuffer.SetData(grid); 
-        frameBuffer.SetData(drawPixels);
+        int kernel2 = shader.FindKernel("ApplyPhysicsAndDraw");
 
-        shader.SetBuffer(kernel3, "grid", gridBuffer);
-        shader.SetBuffer(kernel3, "frameColor", frameBuffer);
-        shader.Dispatch(kernel3, grid.Length, 1, 1);
+        debugVars.SetData(debugGrid);
+        gridBuffer.SetData(grid);
+        shader.SetBuffer(kernel2, "grid", gridBuffer);
+        shader.SetBuffer(kernel2, "frameColor", frameBuffer);
+        shader.SetBuffer(kernel2, "debugVars", debugVars);
+        shader.Dispatch(kernel2, grid.Length, 1, 1);
         frameBuffer.GetData(drawPixels);
 
         tex.SetPixels(drawPixels);
@@ -167,12 +115,15 @@ public class GridScript : MonoBehaviour
 
         gridBuffer.Dispose();
         frameBuffer.Dispose();
+        debugVars.Dispose();
     }
 
 
 
-    int GetProperties(PARTICLE_TYPE pt)
+    int GetProperties(CHARACTER pt)
     {
+
+        const int EXISTS = 1, GRAV = 2;
         // Properties 8 bits
         // Exists + Grav + (Solid|0, Liquid|4, Gas|8, Plasma|12) + ...
         // 1 + 2 + (4 + 8) + 16 + 32 + 64 + 128
@@ -185,19 +136,23 @@ public class GridScript : MonoBehaviour
 
         switch (pt)
         {
-            case PARTICLE_TYPE.SAND:
+            case CHARACTER.HUMAN:
                 properties = 1 + 2 + 0;
                 type = 256;
                 break;
-            case PARTICLE_TYPE.WATER:
+            case CHARACTER.GRASS:
                 properties = 1 + 2 + 4;
                 type = 512;
                 break;
-            case PARTICLE_TYPE.FIRE:
+            case CHARACTER.WATER:
+                properties = 1 + 2 + 4;
+                type = 512;
+                break;
+            case CHARACTER.DIRT:
                 properties = 1 + 2 + 8; 
                 type = 768;
                 break;
-            case PARTICLE_TYPE.WALL:
+            case CHARACTER.WALL:
                 properties = 1 + 0 + 0;
                 type = 1024;
                 break;
@@ -205,16 +160,16 @@ public class GridScript : MonoBehaviour
         return properties + type;
     }
 
-    PARTICLE_TYPE GetRandom()
+    CHARACTER GetRandom()
     {
-        switch (UnityEngine.Random.Range(0, 2))
+        switch (UnityEngine.Random.Range(0, 3))
         {
             case 0:
-                return PARTICLE_TYPE.SAND;
+                return CHARACTER.GRASS;
             case 1:
-                return PARTICLE_TYPE.WATER;
+                return CHARACTER.WATER;
         }
-        return PARTICLE_TYPE.SAND;
+        return CHARACTER.DIRT;
     }
 
     void DrawTestEnv(string env)
@@ -228,79 +183,78 @@ public class GridScript : MonoBehaviour
                     int y = i / HEIGHT;
                     if (y == 30 && x > 10 && x < 20)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                     if ((x == 10 || x == 20) && y > 30 && y < 40)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                     if (y == 30 && x > 60 && x < 70)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
 
                     if ((x == 60 || x == 70) && y > 30 && y < 40)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                 }
-                RemoveParticle(12, 30);
 
                 // Diag top left -> bot right
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 21 + i, 40 - i);
+                    AddParticle(CHARACTER.WALL, 21 + i, 40 - i);
                 }
                 // Diag top right -> bot left
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 42 - i, 40 - i);
+                    AddParticle(CHARACTER.WALL, 42 - i, 40 - i);
                 }
 
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 22 + i, 16 + i);
+                    AddParticle(CHARACTER.WALL, 22 + i, 16 + i);
                 }
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 41 - i, 16 + i);
+                    AddParticle(CHARACTER.WALL, 41 - i, 16 + i);
                 }
                 for (int i = 0; i < 9; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 2 + i, 50 - i);
+                    AddParticle(CHARACTER.WALL, 2 + i, 50 - i);
                 }
 
-                AddParticle(PARTICLE_TYPE.WALL, 0, 50);
-                AddParticle(PARTICLE_TYPE.WALL, 1, 51);
+                AddParticle(CHARACTER.WALL, 0, 50);
+                AddParticle(CHARACTER.WALL, 1, 51);
 
                 // Diag top left -> bot right
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 55 + (int)Mathf.Ceil(i * .5f), 70 - i);
+                    AddParticle(CHARACTER.WALL, 55 + (int)Mathf.Ceil(i * .5f), 70 - i);
                 }
 
                 break;
             case "2":
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 21 + i, 40);
+                    AddParticle(CHARACTER.WALL, 21 + i, 40);
                 }
                 // Diag top left -> bot right
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 45 + i, 40 - i);
+                    AddParticle(CHARACTER.WALL, 45 + i, 40 - i);
                 }
                 // Diag top right -> bot left
                 for (int i = 0; i < 10; i++)
                 {
-                    AddParticle(PARTICLE_TYPE.WALL, 42 - i, 40 - i);
+                    AddParticle(CHARACTER.WALL, 42 - i, 40 - i);
                 }
                 break;
             case "3":
-                AddParticle(PARTICLE_TYPE.WALL, 0, 0);
-                AddParticle(PARTICLE_TYPE.WALL, WIDTH - 1, 0);
-                AddParticle(PARTICLE_TYPE.WALL, WIDTH - 1, HEIGHT - 1);
-                AddParticle(PARTICLE_TYPE.WALL, 0, HEIGHT - 1);
+                AddParticle(CHARACTER.WALL, 0, 0);
+                AddParticle(CHARACTER.WALL, WIDTH - 1, 0);
+                AddParticle(CHARACTER.WALL, WIDTH - 1, HEIGHT - 1);
+                AddParticle(CHARACTER.WALL, 0, HEIGHT - 1);
                 break;
             case "4":
                 for (int i = 0; i < WIDTH * HEIGHT; i++)
@@ -309,23 +263,23 @@ public class GridScript : MonoBehaviour
                     int y = i / HEIGHT;
                     if (y == 30 && x > 10 && x < 20)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                     if ((x == 10 || x == 20) && y > 30 && y < 40)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                     if (y == 30 && x > 60 && x < 70)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
 
                     if ((x == 60 || x == 70) && y > 30 && y < 40)
                     {
-                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                        AddParticle(CHARACTER.WALL, x, y);
                     }
                 }
-                AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(10, 20), HEIGHT - 5);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range(10, 20), HEIGHT - 5);
                 break;
         }
     }
@@ -335,14 +289,14 @@ public class GridScript : MonoBehaviour
         switch (env)
         {
             case "1":
-                AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
-                AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
-                AddParticle(PARTICLE_TYPE.SAND, UnityEngine.Random.Range((int)(WIDTH / 2) + 1, WIDTH - 20), HEIGHT - 1);
-                AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(WIDTH - 20, WIDTH - 1), 0);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range(0, (int)(WIDTH / 2) - 1), HEIGHT - 1);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range((int)(WIDTH / 2) + 1, WIDTH - 20), HEIGHT - 1);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range(WIDTH - 20, WIDTH - 1), 0);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 break;
             case "2":
-                AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
+                AddParticle(CHARACTER.WATER, UnityEngine.Random.Range(15, 60), 0);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 break;
