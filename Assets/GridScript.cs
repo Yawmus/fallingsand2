@@ -20,7 +20,6 @@ public class GridScript : MonoBehaviour
     public Dictionary<int, ParticleData> particleData;
     public ComputeShader shader;
     Texture2D tex;
-    Color[] bkgPixels, drawPixels;
 
     public enum PARTICLE_TYPE
     {
@@ -38,14 +37,16 @@ public class GridScript : MonoBehaviour
         public int id;
     }
 
+    public int[] grid;
+
     public struct ParticleProperties
     {
         public Color color;
         public int properties;
     }
 
-    public const float P_FPS = 40;
-    public const float S_FPS = 40;
+    public const float P_FPS = 30;
+    public const float S_FPS = 30;
     public const float SPAWN_RATE = 30;
     public const float GARBAGE_COLLECTION_RATE = 40;
 
@@ -56,14 +57,8 @@ public class GridScript : MonoBehaviour
         TOTAL_HEIGHT = HEIGHT + DISPOSE_HEIGHT;
         ids = new List<int>();
         particleData = new Dictionary<int, ParticleData>();
+        grid = new int[(WIDTH + 2) * (HEIGHT + 2)]; // 0-nothing, 1-sand, 2-water, 3-gas
 
-        drawPixels = new Color[WIDTH * HEIGHT];
-        bkgPixels = new Color[WIDTH * HEIGHT];
-
-        for (int i = 0; i < WIDTH * HEIGHT; i++)
-        {
-            bkgPixels[i] = new Color(0, 0, 0, 1);
-        }
 
         DrawTestEnv(TEST_ENV);
 
@@ -89,19 +84,7 @@ public class GridScript : MonoBehaviour
 
     void AddParticle(PARTICLE_TYPE pt, int x, int y)
     {
-        int id = UnityEngine.Random.Range(1, int.MaxValue);
-        Vector3 position = new Vector3(x, y, 0);
-        ParticleProperties pp = GetProperties(pt);
-        ParticleData data = new ParticleData
-        {
-            id = id,
-            position = position,
-            color = pp.color,
-            properties = pp.properties
-        };
-
-        particleData.Add(id, data);
-        ids.Add(id);
+        grid[WIDTH * y + x] = GetProperties(pt);
     }
 
     void RemoveParticle(int x, int y)
@@ -139,177 +122,87 @@ public class GridScript : MonoBehaviour
 
     async Task SimulatePhysics()
     {
-        if (ids.Count == 0)
-        {
-            return;
-        }
-
-        //Debug.Log("1");
-        int[] gridData = await CreateGrid();
-        //Debug.Log("3");
-        ParticleData[] particleOutput = await ApplyPhysics(gridData);
-        //Debug.Log("6");
-
-        // Updating positions and removing garbage
-        for (int i = 0; i < particleOutput.Length; i++)
-        {
-            ParticleData data = particleOutput[i];
-            ParticleData p = particleData[data.id];
-            if (data.position.y < 0 || data.position.x < 0 || data.position.y >= HEIGHT || data.position.x >= WIDTH)
-            {
-                RemoveParticle(data.id);
-            }
-            else
-            {
-                particleData.Remove(data.id);
-                particleData[data.id] = data;
-            }
-        }
+        await ApplyPhysics(grid);
     }
 
-    // Used for collision detection
-    async Task<int[]> CreateGrid()
+    async Task ApplyPhysics(int[] grid)
     {
-        // Grid properties:
-        // blocked + direction
-        // 1 + 2
-        int colGridWidth = (WIDTH + 2);
-        int colGridHeight = (HEIGHT + 2);
-        ComputeBuffer inputGrid = new ComputeBuffer(colGridWidth * colGridHeight, 4);
-        ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 36);
-        int[] outputGrid = new int[colGridWidth * colGridHeight];
-
-        int kernel2 = shader.FindKernel("CreateGrid");
-
-        inputGrid.SetData(new int[colGridWidth * colGridHeight]);
-        particleBuffer.SetData(particleData.Values.ToList());
-        shader.SetBuffer(kernel2, "grid", inputGrid);
-        shader.SetBuffer(kernel2, "particleBuffer", particleBuffer);
-
-        shader.Dispatch(kernel2, particleData.Count, 1, 1);
-        inputGrid.GetData(outputGrid);
-
-        inputGrid.Dispose();
-        particleBuffer.Dispose();
-
-        //Debug.Log("2");
-        return outputGrid;
-    }
-
-    async Task<ParticleData[]> ApplyPhysics(int[] gridData)
-    {
-        int colGridWidth = (WIDTH + 2);
-        int colGridHeight = (HEIGHT + 2);
-        //Debug.Log("4");
-        ParticleData[] particleOutput = new ParticleData[particleData.Count];
-
         // Extra dimensions for padding
-        ComputeBuffer inputGrid = new ComputeBuffer(colGridWidth * colGridHeight, 4);
-        ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 36);
+        ComputeBuffer gridBuffer = new ComputeBuffer(grid.Length, 4);
 
         int kernel2 = shader.FindKernel("Move");
 
-        inputGrid.SetData(gridData);
-        particleBuffer.SetData(particleData.Values.ToList());
-        shader.SetBuffer(kernel2, "grid", inputGrid);
-        shader.SetBuffer(kernel2, "particleBuffer", particleBuffer);
-        shader.Dispatch(kernel2, particleData.Count, 1, 1);
-        particleBuffer.GetData(particleOutput);
-        //Debug.Log("5");
+        gridBuffer.SetData(grid);
+        shader.SetBuffer(kernel2, "grid", gridBuffer);
+        shader.Dispatch(kernel2, grid.Length, 1, 1);
+        gridBuffer.GetData(grid);
 
-        inputGrid.Dispose();
-        particleBuffer.Dispose();
-
-        return particleOutput;
+        gridBuffer.Dispose();
     }
 
     async Task UpdateScreen()
     {
-        await DrawBkg();
-
-        if (ids.Count == 0)
-        {
-            tex.SetPixels(drawPixels);
-            tex.Apply();
-            return;
-        }
-
         await DrawParticles();
-    }
-
-    async Task DrawBkg()
-    {
-        ComputeBuffer bkgColor = new ComputeBuffer(bkgPixels.Length, 16);
-        //Color[] frameOutput = new Color[bkgPixels.Length];
-
-        int kernel = shader.FindKernel("DrawBkg");
-
-        shader.SetBuffer(kernel, "frameColor", bkgColor);
-        shader.Dispatch(kernel, bkgPixels.Length, 1, 1);
-        bkgColor.GetData(drawPixels);
-
-        bkgColor.Dispose();
     }
 
     async Task DrawParticles()
     {
-        // Draw particles
-        ComputeBuffer frameBuffer = new ComputeBuffer(drawPixels.Length, 16);
-        ComputeBuffer particleBuffer = new ComputeBuffer(particleData.Count, 36);
+        Color[] drawPixels = new Color[grid.Length];
 
-        //Debug.Log(particleData.Count);
-        //Debug.Log(particleData.Values.ToList()[0].color);
-        //Debug.Log(particleData.Values.ToList()[0].position);
+        // Draw particles
+        ComputeBuffer frameBuffer = new ComputeBuffer(grid.Length, 16);
+        ComputeBuffer gridBuffer = new ComputeBuffer(grid.Length, 4);
+
         int kernel3 = shader.FindKernel("DrawParticle");
-        particleBuffer.SetData(particleData.Values.ToList());
+        gridBuffer.SetData(grid); 
         frameBuffer.SetData(drawPixels);
 
-        shader.SetBuffer(kernel3, "particleBuffer", particleBuffer);
+        shader.SetBuffer(kernel3, "grid", gridBuffer);
         shader.SetBuffer(kernel3, "frameColor", frameBuffer);
-        shader.Dispatch(kernel3, particleData.Count, 1, 1);
+        shader.Dispatch(kernel3, grid.Length, 1, 1);
         frameBuffer.GetData(drawPixels);
 
-        //Debug.Log(drawPixels[0]);
         tex.SetPixels(drawPixels);
         tex.Apply();
 
-        particleBuffer.Dispose();
+        gridBuffer.Dispose();
         frameBuffer.Dispose();
     }
 
 
 
-    ParticleProperties GetProperties(PARTICLE_TYPE pt)
+    int GetProperties(PARTICLE_TYPE pt)
     {
-        Color color = new Color(1, 0, 0, 1);
-
-        // Grav + (Solid|0, Liquid|2, Gas|4, Plasma|6) + ...
-        // 1 + (2 + 4) + 8
+        // Properties 8 bits
+        // Exists + Grav + (Solid|0, Liquid|4, Gas|8, Plasma|12) + ...
+        // 1 + 2 + (4 + 8) + 16 + 32 + 64 + 128
         int properties = 0;
+
+        // Type 8 bits
+        // (Empty|0, Sand|256, Water|512, Fire|768, Wall|1024)
+        // (256 + 512 + 1024)
+        int type = 0;
+
         switch (pt)
         {
             case PARTICLE_TYPE.SAND:
-                color = new Color(1, .99f, .86f, 1);
-                properties = 1 + 0;
+                properties = 1 + 2 + 0;
+                type = 256;
                 break;
             case PARTICLE_TYPE.WATER:
-                color = new Color(.1f, .1f, 1, 1);
-                properties = 1 + 2;
+                properties = 1 + 2 + 4;
+                type = 512;
                 break;
             case PARTICLE_TYPE.FIRE:
-                color = new Color(.82f, 0, .11f, 1);
-                properties = 1 + 4;
+                properties = 1 + 2 + 8; 
+                type = 768;
                 break;
             case PARTICLE_TYPE.WALL:
-                color = new Color(1, 0, 1, 1);
-                properties = 0 + 0;
+                properties = 1 + 0 + 0;
+                type = 1024;
                 break;
         }
-        return new ParticleProperties
-        {
-            color = color,
-            properties = properties
-        };
+        return properties + type;
     }
 
     PARTICLE_TYPE GetRandom()
@@ -409,6 +302,31 @@ public class GridScript : MonoBehaviour
                 AddParticle(PARTICLE_TYPE.WALL, WIDTH - 1, HEIGHT - 1);
                 AddParticle(PARTICLE_TYPE.WALL, 0, HEIGHT - 1);
                 break;
+            case "4":
+                for (int i = 0; i < WIDTH * HEIGHT; i++)
+                {
+                    int x = i % WIDTH;
+                    int y = i / HEIGHT;
+                    if (y == 30 && x > 10 && x < 20)
+                    {
+                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                    }
+                    if ((x == 10 || x == 20) && y > 30 && y < 40)
+                    {
+                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                    }
+                    if (y == 30 && x > 60 && x < 70)
+                    {
+                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                    }
+
+                    if ((x == 60 || x == 70) && y > 30 && y < 40)
+                    {
+                        AddParticle(PARTICLE_TYPE.WALL, x, y);
+                    }
+                }
+                AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(10, 20), HEIGHT - 5);
+                break;
         }
     }
 
@@ -426,6 +344,11 @@ public class GridScript : MonoBehaviour
             case "2":
                 AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
+                //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
+                break;
+            case "4":
+                //AddParticle(PARTICLE_TYPE.WATER, UnityEngine.Random.Range(10, 20), HEIGHT - 20);
+               // AddParticle(PARTICLE_TYPE.SAND, UnityEngine.Random.Range((int)(WIDTH / 2) + 1, WIDTH - 20), HEIGHT - 2);
                 //AddParticle(PARTICLE_TYPE.FIRE, UnityEngine.Random.Range(15, 60), 0);
                 break;
         }

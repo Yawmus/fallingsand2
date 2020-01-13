@@ -1,22 +1,10 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CreateGrid
 #pragma kernel Move
 #pragma kernel DrawParticle
-#pragma kernel DrawBkg
 
-struct ParticleData
-{
-	float4 color;
-	float3 pos;
-	int properties;
-    int id;
-};
 int width;
 int height;
-int colGridWidth;
-int colGridHeight;
 
-RWStructuredBuffer<ParticleData> particleBuffer;
 RWStructuredBuffer<int> grid;
 RWStructuredBuffer<float4> frameColor;
 
@@ -36,98 +24,74 @@ uint rand_xorshift()
 	return rng_state;
 }
 
-[numthreads(64, 1, 1)]
-void CreateGrid(uint3 id : SV_DispatchThreadID)
-{
-	// Early return if overlapping
-	uint num, stride;
-	particleBuffer.GetDimensions(num, stride);
-	if (id.x >= num)
-	{
-		return;
-	}
-
-
-	float3 pos = particleBuffer[id.x].pos;
-
-	int x = (int)pos.x + 1;
-	int y = (int)pos.y + 1;
-	
-	// Grid properties:
-	// block + rand (0,1)
-	// 1 + 2
-
-	// We know it will be blocked
-	int value = 1;
-
-	// Randomness x-direction (falling)
-	rng_state = id.x;
-	uint r0 = rand_xorshift();
-	uint r1 = rand_xorshift();
-	float f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
-	value += 2 * step(0.0, f0 - .5f);
-
-	grid[colGridWidth * y + x] = value;
-}
-
 [numthreads(64,1,1)]
 void Move (uint3 id : SV_DispatchThreadID)
 {
-	// Early return if overlapping
-	uint num, stride;
-	particleBuffer.GetDimensions(num, stride);
-	if (id.x >= num)
+	int prop = grid[id.x];
+
+	if (prop == 0)
 	{
 		return;
 	}
 
+	int x = (int)(id.x % width);
+	int y = (int)(id.x / width); 
+
+	if((x == 0) || (y == 0) || (x >= (width - 1)) || (y >= (height - 1))) // Don't calc edges
+	{
+		return;
+	}
 
 	uint r0, r1;
 	float f0;
 
-    float3 pos = particleBuffer[id.x].pos;
-
 	// x & y padding are extra col/row for particle indexing
-	int yPadding = 1;
-	int xPadding = 1;
-	int x = (int)pos.x + 1;
-	int y = (int)pos.y + 1;
-	int prop = particleBuffer[id.x].properties;
+	
+	// Blocked (assuming all types block)
+	int tTaken = grid[width * (y + 1) + x] > 0;
+	int bTaken = grid[width * (y - 1) + x] > 0;
+	int lTaken = grid[width * (y) + x - 1] > 0;
+	int rTaken = grid[width * (y) + x + 1] > 0;
 
-	// Blocked
-	int tTaken = grid[colGridWidth * (y + 1) + x] & 1;
-	int tlTaken = grid[colGridWidth * (y + 1) + x - 1] & 1;
-	int trTaken = grid[colGridWidth * (y + 1) + x + 1] & 1;
+	int tlTaken = grid[width * (y + 1) + x - 1] > 0;
+	int trTaken = grid[width * (y + 1) + x + 1] > 0;
 
-	int bTaken = grid[colGridWidth * (y - 1) + x] & 1;
-	int blTaken = grid[colGridWidth * (y - 1) + x - 1] & 1;
-	int brTaken = grid[colGridWidth * (y - 1) + x + 1] & 1;
-	int lTaken = grid[colGridWidth * (y) + x - 1] & 1;
-	int rTaken = grid[colGridWidth * (y) + x + 1] & 1;
+	int blTaken = grid[width * (y - 1) + x - 1] > 0;
+	int brTaken = grid[width * (y - 1) + x + 1] > 0;
 
 	int bsTaken = (blTaken + brTaken) == 2;
 
+	// *******************************
 	// Useful pre-calc (liquid/gas)
 	int l = lTaken == 0;  // If 1, can move left
 	l *= -1;
 	int r = rTaken == 0;  // If 1, can move right
 	int both = (l != 0) && (r != 0); // Set dir to 1 if l and r are free
-	int gridDir = saturate(grid[colGridWidth * y + x] & 2); // Get direction to fall
+
+	// Randomness x-direction (falling)
+	rng_state = id.x;
+	r0 = rand_xorshift();
+	r1 = rand_xorshift();
+	f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
+	int fallDir = step(0.0, f0 - .5f);
+
 	int lrFallDir = 0;
-	lrFallDir += lerp(0, 1, gridDir == 0) * l; // Fall left
-	lrFallDir += lerp(0, 1, gridDir == 1) * r; // Fall right
+	lrFallDir += lerp(0, 1, fallDir == 0) * l; // Fall left
+	lrFallDir += lerp(0, 1, fallDir == 1) * r; // Fall right
+	// *******************************
 
-
+	 
 	// Calc moveX/moveY (liquid)
 	int moveX2 = l + r;
 	moveX2 += lerp(0, 1, both == 0) * moveX2;       // Use current value if they are different
 	moveX2 += lerp(0, 1, both == 1) * lrFallDir;    // Use (random) grid dir
 
-	rng_state = id.x;
+
+	rng_state = id.x + 1000;
 	r0 = rand_xorshift();
 	r1 = rand_xorshift();
 	f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
-	
+
 	int canMove = !lerp(0, 1, bsTaken * ( f0 < .5f)); // If bl and br are taken, have a chance of not moving
 	moveX2 = step(0.0, canMove - .5f) * moveX2; // Move liquid if not blocked
 	int moveY2 = -step(0.0, bTaken * -1); // Calc moveY
@@ -138,7 +102,7 @@ void Move (uint3 id : SV_DispatchThreadID)
 	moveX3 += lerp(0, 1, both == 0) * moveX3;       // Use current value if they are different
 	moveX3 += lerp(0, 1, both == 1) * lrFallDir;    // Use (random) grid dir
 
-	rng_state = id.x;
+	rng_state = id.x + 2000;
 	r0 = rand_xorshift();
 	r1 = rand_xorshift();
 	f0 = float(rand_xorshift()) * (1.0 / 4294967296.0); // float in [0, 1)
@@ -157,62 +121,48 @@ void Move (uint3 id : SV_DispatchThreadID)
 
 
 
-
-
 	// solid vs liquid vs gas
 	int moveX = 0;
-	moveX += lerp(0, 1, (prop & (2 + 4)) == 0) * moveX1;
-	moveX += lerp(0, 1, (prop & (2 + 4)) == 2) * moveX2;
-	moveX += lerp(0, 1, (prop & (2 + 4)) == 4) * moveX3;
+	moveX += lerp(0, 1, (prop & (4 + 8)) == 0) * moveX1;
+	moveX += lerp(0, 1, (prop & (4 + 8)) == 4) * moveX2;
+	moveX += lerp(0, 1, (prop & (4 + 8)) == 8) * moveX3;
 
 	int moveY = 0;
-	moveY += lerp(0, 1, (prop & (2 + 4)) == 0) * moveY1;
-	moveY += lerp(0, 1, (prop & (2 + 4)) == 2) * moveY2;
-	moveY += lerp(0, 1, (prop & (2 + 4)) == 4) * moveY3;
+	moveY += lerp(0, 1, (prop & (4 + 8)) == 0) * moveY1;
+	moveY += lerp(0, 1, (prop & (4 + 8)) == 4) * moveY2;
+	moveY += lerp(0, 1, (prop & (4 + 8)) == 8) * moveY3;
 
 
 	// Move if affected by gravity and not blocked
-	moveY *= (prop & 1);
-	moveX *= (prop & 1);
+	moveY *= lerp(0, 1, (prop & 2) == 2);
+	moveX *= lerp(0, 1, (prop & 2) == 2);
 
 	// If moveY, then ignore moveX
 	moveX *= lerp(0, 1, moveY == 0);
 
-	particleBuffer[id.x].pos = float3((int)pos.x + moveX, (int)pos.y + moveY, 0);
-}
+	grid[width * y + x] = 0;
+	x += moveX;
+	y += moveY;
 
-[numthreads(64, 1, 1)]
-void DrawBkg(uint3 id : SV_DispatchThreadID)
-{
-	// Early return if overlapping
-	uint num, stride;
-	frameColor.GetDimensions(num, stride);
-	if (id.x >= num)
-	{
-		return;
-	}
-
-
-	frameColor[id.x] = float4(0, 0, 0, 1);
+	grid[width * y + x] = prop;
 }
 
 [numthreads(64,1,1)]
 void DrawParticle (uint3 id : SV_DispatchThreadID)
 {
-	// Early return if overlapping
-	uint num, stride;
-	particleBuffer.GetDimensions(num, stride);
-	if (id.x >= num)
-	{
-		return;
-	}
+    // Draw 
+	int prop = grid[id.x];
+	float4 color = float4(0, 0, 0, 0);
 
-    // Draw
-	float3 pos = particleBuffer[id.x].pos;
-	float4 color = particleBuffer[id.x].color;
+	// Type of particle
+	color += (prop == 0) * float4(0, 0, 0, 1);
+	color += lerp(0, 1, (prop & (256 + 512 + 1024)) == 256) * float4(1, .99f, .86f, 1);
+	color += lerp(0, 1, (prop & (256 + 512 + 1024)) == 512) * float4(.1f, .1f, 1, 1);
+	color += lerp(0, 1, (prop & (256 + 512 + 1024)) == 768) * float4(.82f, 0, .11f, 1);
+	color += lerp(0, 1, (prop & (256 + 512 + 1024)) == 1024) * float4(1, 0, 1, 1);
 
-    int x = (int) pos.x;
-    int y = (int) pos.y;
+	uint x = id.x % width;
+	uint y = id.x / width;
 
-    frameColor[width * y + x] = color;
+	frameColor[width * y + x] = color;
 }
